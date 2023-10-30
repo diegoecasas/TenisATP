@@ -1,0 +1,48 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import l1  # Importar regularización L1
+import numpy as np
+
+# Cargar datos de Excel a DataFrames de pandas
+df_features = pd.read_excel('Ratings.xlsx')  # Asume que 'ratings.xlsx' contiene las columnas de características
+df_results = pd.read_excel('partidos_jugados.xlsx')  # Asume que 'partidos_jugados.xlsx' contiene los resultados de los enfrentamientos
+
+# Asegurar correspondencia de filas
+if df_features.shape[0] != df_results.shape[0]:
+    print("El número de filas en ratings no coincide con el número de filas en partidos_jugados.")
+else:
+    # Normalizar las características
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(df_features.iloc[:, 1:])
+
+    # Dividir los datos en conjuntos de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = train_test_split(scaled_features, df_results.iloc[:, 1], test_size=0.2, random_state=42)
+
+    # Crear un modelo de red neuronal en TensorFlow con 16 neuronas y regularización L1
+    model = Sequential()
+    model.add(Dense(16, activation='relu', kernel_regularizer=l1(0.03), input_shape=(X_train.shape[1],)))  # Agregar regularización L1
+    model.add(Dense(1, activation='sigmoid'))  # Para clasificación binaria
+
+    # Compilar el modelo
+    optimizer = Adam(learning_rate=0.001)
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+
+    # Entrenar el modelo con validación cruzada
+    model.fit(X_train, y_train, epochs=100, batch_size=64, validation_split=0.2)
+
+    # Evaluar el modelo en el conjunto de prueba
+    _, accuracy = model.evaluate(X_test, y_test)
+    print(f"Precisión en el conjunto de prueba: {accuracy * 100:.2f}%")
+
+    # Obtener la importancia de las características a partir de los pesos del modelo
+    feature_importance = np.abs(model.layers[0].get_weights()[0]).sum(axis=1)
+
+    # Emparejar los pesos con los nombres de las características
+    feature_importance_dict = dict(zip(df_features.columns[1:], feature_importance))
+
+    # Mostrar la importancia de cada característica
+    print("Importancia de cada característica:", feature_importance_dict)
